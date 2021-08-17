@@ -3,7 +3,7 @@ use cosmwasm_std::{
     StdError, StdResult, Storage,
 };
 
-use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{CountResponse,InfoResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{config, config_read, State};
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
@@ -13,6 +13,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let state = State {
         count: msg.count,
+        author:msg.author.to_string(),
         owner: deps.api.canonical_address(&env.message.sender)?,
     };
 
@@ -29,7 +30,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Increment {} => try_increment(deps, env),
+        HandleMsg::Increment {author} => try_increment(deps, env,author),
         HandleMsg::Reset { count } => try_reset(deps, env, count),
     }
 }
@@ -37,10 +38,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 pub fn try_increment<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     _env: Env,
+    author:String,
 ) -> StdResult<HandleResponse> {
     config(&mut deps.storage).update(|mut state| {
         state.count += 1;
+        state.author = author.to_string();
         debug_print!("count = {}", state.count);
+        debug_print!("last author = {}", state.author);
         Ok(state)
     })?;
 
@@ -59,6 +63,7 @@ pub fn try_reset<S: Storage, A: Api, Q: Querier>(
             return Err(StdError::Unauthorized { backtrace: None });
         }
         state.count = count;
+        state.author = "null".to_string();
         Ok(state)
     })?;
     debug_print("count reset successfully");
@@ -71,12 +76,17 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
+        QueryMsg::GetInfo {} => to_binary(&query_info(deps)?),
     }
 }
 
 fn query_count<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<CountResponse> {
     let state = config_read(&deps.storage).load()?;
     Ok(CountResponse { count: state.count })
+}
+fn query_info<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<InfoResponse> {
+    let state = config_read(&deps.storage).load()?;
+    Ok(InfoResponse { count: state.count, author:state.author })
 }
 
 #[cfg(test)]
@@ -89,7 +99,7 @@ mod tests {
     fn proper_initialization() {
         let mut deps = mock_dependencies(20, &[]);
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { count: 17,author:"anonimus".to_string() };
         let env = mock_env("creator", &coins(1000, "earth"));
 
         // we can just call .unwrap() to assert this was a success
@@ -106,13 +116,13 @@ mod tests {
     fn increment() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { count: 17 ,author:"anonimus".to_string()};
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 
         // anyone can increment
         let env = mock_env("anyone", &coins(2, "token"));
-        let msg = HandleMsg::Increment {};
+        let msg = HandleMsg::Increment {author:"anonimus".to_string()};
         let _res = handle(&mut deps, env, msg).unwrap();
 
         // should increase counter by 1
@@ -125,7 +135,7 @@ mod tests {
     fn reset() {
         let mut deps = mock_dependencies(20, &coins(2, "token"));
 
-        let msg = InitMsg { count: 17 };
+        let msg = InitMsg { count: 17,author:"anonimus".to_string() };
         let env = mock_env("creator", &coins(2, "token"));
         let _res = init(&mut deps, env, msg).unwrap();
 

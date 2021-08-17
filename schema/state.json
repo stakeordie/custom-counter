@@ -3,10 +3,14 @@
   "title": "State",
   "type": "object",
   "required": [
+    "author",
     "count",
     "owner"
   ],
   "properties": {
+    "author": {
+      "type": "string"
+    },
     "count": {
       "type": "integer",
       "format": "int32"

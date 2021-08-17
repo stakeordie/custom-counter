@@ -3,9 +3,13 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
+    "author",
     "count"
   ],
   "properties": {
+    "author": {
+      "type": "string"
+    },
     "count": {
       "type": "integer",
       "format": "int32"
